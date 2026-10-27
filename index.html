@@ -92,6 +92,15 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
   <div class="cards" id="cards"></div>
 
   <div class="panel">
+    <h2>公开实时行情</h2>
+    <div class="ctrl">
+      <div class="btn" id="btnLiveRefresh" onclick="refreshLiveQuotes()">立即刷新</div>
+      <span class="note" id="liveStatus">页面加载后自动获取腾讯公开行情，每 60 秒刷新。</span>
+    </div>
+    <div class="note">B/S 榜单增加实时价、实时涨跌和行情时间；这些盘中数据仅用于查看，不参与按已完成收盘计算的波段、进度和倍量筛选。</div>
+  </div>
+
+  <div class="panel">
     <h2>股票池构建漏斗</h2>
     <div class="charts">
       <div id="chartFunnel" class="chart"></div>
@@ -300,6 +309,13 @@ document.getElementById('featNote').textContent =
 
 // ---------- B/S 点独立统计与提示 ----------
 function fmt(v) { return (v === null || v === undefined || Number.isNaN(v)) ? '' : v; }
+const liveQuotes = {};
+function liveCells(code) {
+  const q = liveQuotes[code];
+  if (!q) return '<td>—</td><td>—</td><td>—</td>';
+  const cls = q.pct > 0 ? 'up' : (q.pct < 0 ? 'down' : '');
+  return '<td><b>' + q.price.toFixed(2) + '</b></td><td class="' + cls + '">' + (q.pct > 0 ? '+' : '') + q.pct.toFixed(2) + '%</td><td title="' + q.time + '">' + q.time.slice(11) + '</td>';
+}
 const signalFreq = { B: 'D', S: 'D' };
 const signalVolumeOnly = { B: true, S: true };
 let volumeThreshold = 2;
@@ -342,16 +358,16 @@ function renderSignal(point) {
     return sort.asc ? result : -result;
   });
   const signed = (v, suffix) => fmt(v) === '' ? '' : (v > 0 ? '+' : '') + v + (suffix || '');
-  const head = `<tr><th onclick="sortSignals('${point}','code')">代码${sortMark(point, 'code')}</th><th>名称</th><th onclick="sortSignals('${point}','ind')">二级行业${sortMark(point, 'ind')}</th><th>最新收盘</th><th>波段起点日</th><th>起点价</th><th>${point}点价格</th><th>与现价差</th><th>与现价差%</th><th>${point}点时间</th><th>最大日量比</th><th>近三周≥${volumeThreshold}倍</th><th>最大量比日</th><th onclick="sortSignals('${point}','prog')">距${point}点进度%${sortMark(point, 'prog')}</th></tr>`;
+  const head = `<tr><th onclick="sortSignals('${point}','code')">代码${sortMark(point, 'code')}</th><th>名称</th><th onclick="sortSignals('${point}','ind')">二级行业${sortMark(point, 'ind')}</th><th>最新收盘</th><th>实时价</th><th>实时涨跌</th><th>行情时间</th><th>波段起点日</th><th>起点价</th><th>${point}点价格</th><th>与现价差</th><th>与现价差%</th><th>${point}点时间</th><th>最大日量比</th><th>近三周≥${volumeThreshold}倍</th><th>最大量比日</th><th onclick="sortSignals('${point}','prog')">距${point}点进度%${sortMark(point, 'prog')}</th></tr>`;
   const body = rows.map(r =>
     '<tr><td>' + r.code + '</td><td>' + r.name + '</td><td>' + fmt(r.ind) + '</td>' +
-    '<td>' + fmt(r.last) + '</td><td>' + fmt(r.ws) + '</td><td>' + fmt(r.wspx) + '</td>' +
+    '<td>' + fmt(r.last) + '</td>' + liveCells(r.code) + '<td>' + fmt(r.ws) + '</td><td>' + fmt(r.wspx) + '</td>' +
     '<td class="' + (point === 'B' ? 'down' : 'up') + '">' + fmt(r.target) + '</td>' +
     '<td class="' + (r.diff >= 0 ? 'up' : 'down') + '"><b>' + signed(r.diff, '') + '</b></td>' +
     '<td class="' + (r.diffPct >= 0 ? 'up' : 'down') + '"><b>' + signed(r.diffPct, '%') + '</b></td>' +
     '<td>' + fmt(r.date) + '</td><td><b>' + fmt(r.volRatio) + ' 倍</b></td><td>' + (hasVolume(r) ? '是' : '否') + '</td><td>' + fmt(r.volDate) + '</td>' +
     '<td><b>' + fmt(r.prog) + '</b></td></tr>').join('');
-  document.getElementById('table' + point).innerHTML = head + (body || '<tr><td colspan="14">当前频率没有符合该区间的股票</td></tr>');
+  document.getElementById('table' + point).innerHTML = head + (body || '<tr><td colspan="17">当前频率没有符合该区间的股票</td></tr>');
   document.getElementById('cnt' + point).textContent = (f === 'D' ? '日线' : '周线') + '：' + rows.length + ' 只（全部 ' + allRows.length + '，≥' + volumeThreshold + '倍 ' + count + '）';
 }
 function sortSignals(point, key) {
@@ -393,16 +409,16 @@ function renderSingle(point) {
     return sort.asc ? result : -result;
   });
   const signed = (v, suffix) => fmt(v) === '' ? '' : (v > 0 ? '+' : '') + v + (suffix || '');
-  const head = `<tr><th onclick="sortSingle('${point}','code')">代码${singleSortMark(point, 'code')}</th><th>名称</th><th onclick="sortSingle('${point}','ind')">二级行业${singleSortMark(point, 'ind')}</th><th>最新收盘</th><th>波段起点日</th><th>起点价</th><th>${point}点价格</th><th>与现价差</th><th>与现价差%</th><th>判断截止日</th><th onclick="sortSingle('${point}','date')">${point}点时间${singleSortMark(point, 'date')}</th><th onclick="sortSingle('${point}','condition')">单条件状态${singleSortMark(point, 'condition')}</th><th>最大日量比</th><th>近三周≥${volumeThreshold}倍</th><th>最大量比日</th></tr>`;
+  const head = `<tr><th onclick="sortSingle('${point}','code')">代码${singleSortMark(point, 'code')}</th><th>名称</th><th onclick="sortSingle('${point}','ind')">二级行业${singleSortMark(point, 'ind')}</th><th>最新收盘</th><th>实时价</th><th>实时涨跌</th><th>行情时间</th><th>波段起点日</th><th>起点价</th><th>${point}点价格</th><th>与现价差</th><th>与现价差%</th><th>判断截止日</th><th onclick="sortSingle('${point}','date')">${point}点时间${singleSortMark(point, 'date')}</th><th onclick="sortSingle('${point}','condition')">单条件状态${singleSortMark(point, 'condition')}</th><th>最大日量比</th><th>近三周≥${volumeThreshold}倍</th><th>最大量比日</th></tr>`;
   const body = rows.map(r =>
     '<tr><td>' + r.code + '</td><td>' + r.name + '</td><td>' + fmt(r.ind) + '</td>' +
-    '<td>' + fmt(r.last) + '</td><td>' + fmt(r.ws) + '</td><td>' + fmt(r.wspx) + '</td>' +
+    '<td>' + fmt(r.last) + '</td>' + liveCells(r.code) + '<td>' + fmt(r.ws) + '</td><td>' + fmt(r.wspx) + '</td>' +
     '<td class="' + (point === 'B' ? 'down' : 'up') + '">' + fmt(r.target) + '</td>' +
     '<td class="' + (r.diff >= 0 ? 'up' : 'down') + '"><b>' + signed(r.diff, '') + '</b></td>' +
     '<td class="' + (r.diffPct >= 0 ? 'up' : 'down') + '"><b>' + signed(r.diffPct, '%') + '</b></td>' +
     '<td>' + fmt(r.asOf) + '</td><td>' + fmt(r.date) + '</td><td><b>' + fmt(r.condition) + '</b></td>' +
     '<td>' + fmt(r.volRatio) + ' 倍</td><td>' + (hasVolume(r) ? '是' : '否') + '</td><td>' + fmt(r.volDate) + '</td></tr>').join('');
-  document.getElementById('singleTable' + point).innerHTML = head + (body || '<tr><td colspan="15">当前频率没有符合单条件的股票</td></tr>');
+  document.getElementById('singleTable' + point).innerHTML = head + (body || '<tr><td colspan="18">当前频率没有符合单条件的股票</td></tr>');
   document.getElementById('cntSingle' + point).textContent = (f === 'D' ? '日线' : '周线') + '：' + rows.length + ' 只（全部 ' + allRows.length + '，≥' + volumeThreshold + '倍 ' + count + '）';
 }
 function sortSingle(point, key) {
@@ -483,6 +499,68 @@ function setFreq(f) {
 }
 
 renderTable();
+
+// ---------- 腾讯公开实时行情（与收盘统计分开） ----------
+function liveSymbol(code) { return (code.startsWith('6') ? 'sh' : 'sz') + code; }
+function formatQuoteTime(raw) {
+  return raw && raw.length >= 14 ? raw.slice(0,4) + '-' + raw.slice(4,6) + '-' + raw.slice(6,8) + ' ' + raw.slice(8,10) + ':' + raw.slice(10,12) + ':' + raw.slice(12,14) : '';
+}
+function loadLiveBatch(codes) {
+  return new Promise(resolve => {
+    const script = document.createElement('script');
+    let settled = false;
+    const finish = ok => {
+      if (settled) return;
+      settled = true;
+      let count = 0;
+      if (ok) codes.forEach(code => {
+        const symbol = liveSymbol(code);
+        const raw = window['v_' + symbol];
+        if (!raw) return;
+        const a = raw.split('~');
+        const price = Number(a[3]), pct = Number(a[32]);
+        if (a.length > 32 && price > 0 && Number.isFinite(pct)) {
+          liveQuotes[code] = { price, pct, time: formatQuoteTime(a[30]) };
+          count++;
+        }
+      });
+      script.remove();
+      resolve(count);
+    };
+    script.onload = () => finish(true);
+    script.onerror = () => finish(false);
+    script.src = 'https://qt.gtimg.cn/q=' + codes.map(liveSymbol).join(',') + '&_=' + Date.now();
+    document.head.appendChild(script);
+    setTimeout(() => finish(false), 12000);
+  });
+}
+let liveLoading = false;
+async function refreshLiveQuotes() {
+  if (liveLoading) return;
+  liveLoading = true;
+  const status = document.getElementById('liveStatus');
+  const codes = [...new Set(['B','S'].flatMap(p => ['D','W'].flatMap(f =>
+    [...D.signals[p][f], ...D.singleSignals[p][f]].map(r => r.code))))];
+  let updated = 0, latest = '';
+  status.textContent = '正在获取公开行情，共 ' + codes.length + ' 只…';
+  try {
+    for (let i = 0; i < codes.length; i += 50) {
+      updated += await loadLiveBatch(codes.slice(i, i + 50));
+      Object.values(liveQuotes).forEach(q => { if (q.time > latest) latest = q.time; });
+      status.textContent = '已获取 ' + updated + ' / ' + codes.length + ' 只，继续更新…';
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    renderSignal('B'); renderSignal('S'); renderSingle('B'); renderSingle('S');
+    status.textContent = '已更新 ' + updated + ' / ' + codes.length + ' 只 ｜ 行情时间 ' + (latest || '不可用') + ' ｜ 每 60 秒自动刷新';
+  } catch (e) {
+    status.textContent = '本次公开行情获取失败，将按原周期自动重试；收盘统计不受影响。';
+  } finally {
+    liveLoading = false;
+  }
+}
+refreshLiveQuotes();
+setInterval(() => { if (document.visibilityState === 'visible') refreshLiveQuotes(); }, 60000);
+
 window.addEventListener('resize', () => {
   document.querySelectorAll('.chart').forEach(el => {
     const c = echarts.getInstanceByDom(el); if (c) c.resize();

@@ -126,10 +126,6 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
       <div class="btn" id="volThr15" onclick="setVolumeThreshold(1.5)">≥ 1.5 倍</div>
       <div class="btn on" id="volThr20" onclick="setVolumeThreshold(2)">≥ 2 倍</div>
       <div class="btn" id="volThr30" onclick="setVolumeThreshold(3)">≥ 3 倍</div>
-      <span class="note">净利润同比：</span>
-      <div class="btn on" id="profitAll" onclick="setProfitFilter('all')">全部</div>
-      <div class="btn" id="profitUp" onclick="setProfitFilter('up')">利润增长</div>
-      <div class="btn" id="profitDown" onclick="setProfitFilter('down')">利润下降</div>
     </div>
     <div class="tbl-box"><table id="signalSummary"></table></div>
   </div>
@@ -142,6 +138,9 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
       <div class="btn" id="btnSingleBW" onclick="setSingleFreq('B','W')">周线</div>
       <div class="btn on" id="btnSingleBVol1" onclick="setSingleVolumeFilter('B',true)">仅看倍量</div>
       <div class="btn" id="btnSingleBVol0" onclick="setSingleVolumeFilter('B',false)">查看全部</div>
+      <div class="btn on" id="btnSingleBProfitAll" onclick="setSingleProfitFilter('B','all')">全部利润</div>
+      <div class="btn" id="btnSingleBProfitUp" onclick="setSingleProfitFilter('B','up')">利润增长</div>
+      <div class="btn" id="btnSingleBProfitDown" onclick="setSingleProfitFilter('B','down')">利润下降</div>
       <span class="note" id="cntSingleB"></span>
     </div>
     <div class="tbl-box"><table id="singleTableB"></table></div>
@@ -155,6 +154,9 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
       <div class="btn" id="btnSingleSW" onclick="setSingleFreq('S','W')">周线</div>
       <div class="btn on" id="btnSingleSVol1" onclick="setSingleVolumeFilter('S',true)">仅看倍量</div>
       <div class="btn" id="btnSingleSVol0" onclick="setSingleVolumeFilter('S',false)">查看全部</div>
+      <div class="btn on" id="btnSingleSProfitAll" onclick="setSingleProfitFilter('S','all')">全部利润</div>
+      <div class="btn" id="btnSingleSProfitUp" onclick="setSingleProfitFilter('S','up')">利润增长</div>
+      <div class="btn" id="btnSingleSProfitDown" onclick="setSingleProfitFilter('S','down')">利润下降</div>
       <span class="note" id="cntSingleS"></span>
     </div>
     <div class="tbl-box"><table id="singleTableS"></table></div>
@@ -168,6 +170,9 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
       <div class="btn" id="btnBW" onclick="setSignalFreq('B','W')">周线</div>
       <div class="btn on" id="btnBVol1" onclick="setVolumeFilter('B',true)">仅看倍量</div>
       <div class="btn" id="btnBVol0" onclick="setVolumeFilter('B',false)">查看全部</div>
+      <div class="btn on" id="btnBProfitAll" onclick="setSignalProfitFilter('B','all')">全部利润</div>
+      <div class="btn" id="btnBProfitUp" onclick="setSignalProfitFilter('B','up')">利润增长</div>
+      <div class="btn" id="btnBProfitDown" onclick="setSignalProfitFilter('B','down')">利润下降</div>
       <span class="note" id="cntB"></span>
     </div>
     <div class="tbl-box"><table id="tableB"></table></div>
@@ -181,6 +186,9 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
       <div class="btn" id="btnSW" onclick="setSignalFreq('S','W')">周线</div>
       <div class="btn on" id="btnSVol1" onclick="setVolumeFilter('S',true)">仅看倍量</div>
       <div class="btn" id="btnSVol0" onclick="setVolumeFilter('S',false)">查看全部</div>
+      <div class="btn on" id="btnSProfitAll" onclick="setSignalProfitFilter('S','all')">全部利润</div>
+      <div class="btn" id="btnSProfitUp" onclick="setSignalProfitFilter('S','up')">利润增长</div>
+      <div class="btn" id="btnSProfitDown" onclick="setSignalProfitFilter('S','down')">利润下降</div>
       <span class="note" id="cntS"></span>
     </div>
     <div class="tbl-box"><table id="tableS"></table></div>
@@ -328,10 +336,11 @@ function hasVolume(r) {
   if (volumeThreshold === 2) return r.volOk;
   return typeof r.volRatioRaw === 'number' && r.volRatioRaw >= volumeThreshold;
 }
-let profitFilter = 'all';
-function profitMatches(r) {
-  if (profitFilter === 'up') return typeof r.profitYoy === 'number' && r.profitYoy > 0;
-  if (profitFilter === 'down') return typeof r.profitYoy === 'number' && r.profitYoy < 0;
+const signalProfitFilter = { B: 'all', S: 'all' };
+const singleProfitFilter = { B: 'all', S: 'all' };
+function profitMatches(r, filter) {
+  if (filter === 'up') return typeof r.profitYoy === 'number' && r.profitYoy > 0;
+  if (filter === 'down') return typeof r.profitYoy === 'number' && r.profitYoy < 0;
   return true;
 }
 function percentCell(v) {
@@ -342,13 +351,21 @@ function percentCell(v) {
 function financialCells(r) {
   return percentCell(r.revenueYoy) + percentCell(r.profitYoy) + '<td>' + fmt(r.profitPeriod) + '</td>';
 }
-function setProfitFilter(filter) {
-  profitFilter = filter;
+function updateProfitButtons(prefix, point, filter) {
   ['all', 'up', 'down'].forEach(key => {
-    const id = 'profit' + (key === 'all' ? 'All' : (key === 'up' ? 'Up' : 'Down'));
-    document.getElementById(id).className = 'btn' + (key === filter ? ' on' : '');
+    const suffix = key === 'all' ? 'All' : (key === 'up' ? 'Up' : 'Down');
+    document.getElementById('btn' + prefix + point + 'Profit' + suffix).className = 'btn' + (key === filter ? ' on' : '');
   });
-  renderSignal('B'); renderSignal('S'); renderSingle('B'); renderSingle('S');
+}
+function setSignalProfitFilter(point, filter) {
+  signalProfitFilter[point] = filter;
+  updateProfitButtons('', point, filter);
+  renderSignal(point);
+}
+function setSingleProfitFilter(point, filter) {
+  singleProfitFilter[point] = filter;
+  updateProfitButtons('Single', point, filter);
+  renderSingle(point);
 }
 function volumeCount(point, freq) {
   return D.signals[point][freq].filter(hasVolume).length;
@@ -375,7 +392,7 @@ function renderSignal(point) {
   const f = signalFreq[point];
   const allRows = D.signals[point][f];
   const count = volumeCount(point, f);
-  let rows = allRows.filter(r => (!signalVolumeOnly[point] || hasVolume(r)) && profitMatches(r));
+  let rows = allRows.filter(r => (!signalVolumeOnly[point] || hasVolume(r)) && profitMatches(r, signalProfitFilter[point]));
   const sort = signalSort[point];
   rows = rows.slice().sort((a, b) => {
     let result;
@@ -424,7 +441,7 @@ function renderSingle(point) {
   const f = singleFreq[point];
   const allRows = D.singleSignals[point][f];
   const count = singleVolumeCount(point, f);
-  let rows = allRows.filter(r => (!singleVolumeOnly[point] || hasVolume(r)) && profitMatches(r));
+  let rows = allRows.filter(r => (!singleVolumeOnly[point] || hasVolume(r)) && profitMatches(r, singleProfitFilter[point]));
   const sort = singleSort[point];
   rows = rows.slice().sort((a, b) => {
     let result;

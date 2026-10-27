@@ -95,7 +95,7 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
     <h2>公开实时行情</h2>
     <div class="ctrl">
       <div class="btn" id="btnLiveRefresh" onclick="refreshLiveQuotes()">立即刷新</div>
-      <span class="note" id="liveStatus">页面加载后自动获取腾讯公开行情，每 60 秒刷新。</span>
+      <span class="note" id="liveStatus">页面加载后获取腾讯公开行情，每交易日 15:00 自动刷新。</span>
     </div>
     <div class="note">B/S 榜单增加实时价、实时涨跌和行情时间；这些盘中数据仅用于查看，不参与按已完成收盘计算的波段、进度和倍量筛选。</div>
   </div>
@@ -551,15 +551,30 @@ async function refreshLiveQuotes() {
       await new Promise(resolve => setTimeout(resolve, 250));
     }
     renderSignal('B'); renderSignal('S'); renderSingle('B'); renderSingle('S');
-    status.textContent = '已更新 ' + updated + ' / ' + codes.length + ' 只 ｜ 行情时间 ' + (latest || '不可用') + ' ｜ 每 60 秒自动刷新';
+    status.textContent = '已更新 ' + updated + ' / ' + codes.length + ' 只 ｜ 行情时间 ' + (latest || '不可用') + ' ｜ 每交易日 15:00 自动刷新';
   } catch (e) {
-    status.textContent = '本次公开行情获取失败，将按原周期自动重试；收盘统计不受影响。';
+    status.textContent = '本次公开行情获取失败，将在下一交易日 15:00 重试；也可点击立即刷新。';
   } finally {
     liveLoading = false;
   }
 }
+function nextTradingDayAt15() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(15, 0, 0, 0);
+  if (now >= next) next.setDate(next.getDate() + 1);
+  while (next.getDay() === 0 || next.getDay() === 6) next.setDate(next.getDate() + 1);
+  return next;
+}
+function scheduleLiveRefresh() {
+  const next = nextTradingDayAt15();
+  setTimeout(async () => {
+    await refreshLiveQuotes();
+    scheduleLiveRefresh();
+  }, next.getTime() - Date.now());
+}
 refreshLiveQuotes();
-setInterval(() => { if (document.visibilityState === 'visible') refreshLiveQuotes(); }, 60000);
+scheduleLiveRefresh();
 
 window.addEventListener('resize', () => {
   document.querySelectorAll('.chart').forEach(el => {

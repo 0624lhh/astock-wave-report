@@ -294,13 +294,26 @@ function renderSignalSummary() {
   document.getElementById('cardB').textContent = volumeCount('B', 'D') + ' / ' + volumeCount('B', 'W');
   document.getElementById('cardS').textContent = volumeCount('S', 'D') + ' / ' + volumeCount('S', 'W');
 }
+const signalSort = { B: { key: 'prog', asc: false }, S: { key: 'prog', asc: false } };
+function sortMark(point, key) {
+  const sort = signalSort[point];
+  return sort.key === key ? (sort.asc ? ' ▲' : ' ▼') : '';
+}
 function renderSignal(point) {
   const f = signalFreq[point];
   const allRows = D.signals[point][f];
   const count = volumeCount(point, f);
-  const rows = signalVolumeOnly[point] ? allRows.filter(hasVolume) : allRows;
+  let rows = signalVolumeOnly[point] ? allRows.filter(hasVolume) : allRows;
+  const sort = signalSort[point];
+  rows = rows.slice().sort((a, b) => {
+    let result;
+    if (sort.key === 'prog') result = (a.prog ?? -Infinity) - (b.prog ?? -Infinity);
+    else result = String(a[sort.key] ?? '').localeCompare(String(b[sort.key] ?? ''), sort.key === 'ind' ? 'zh-CN' : 'en');
+    if (result === 0 && sort.key !== 'prog') result = (b.prog ?? -Infinity) - (a.prog ?? -Infinity);
+    return sort.asc ? result : -result;
+  });
   const signed = (v, suffix) => fmt(v) === '' ? '' : (v > 0 ? '+' : '') + v + (suffix || '');
-  const head = '<tr><th>代码</th><th>名称</th><th>二级行业</th><th>最新收盘</th><th>波段起点日</th><th>起点价</th><th>' + point + '点价格</th><th>与现价差</th><th>与现价差%</th><th>' + point + '点时间</th><th>最大日量比</th><th>近三周≥' + volumeThreshold + '倍</th><th>最大量比日</th><th>距' + point + '点进度%</th></tr>';
+  const head = `<tr><th onclick="sortSignals('${point}','code')">代码${sortMark(point, 'code')}</th><th>名称</th><th onclick="sortSignals('${point}','ind')">二级行业${sortMark(point, 'ind')}</th><th>最新收盘</th><th>波段起点日</th><th>起点价</th><th>${point}点价格</th><th>与现价差</th><th>与现价差%</th><th>${point}点时间</th><th>最大日量比</th><th>近三周≥${volumeThreshold}倍</th><th>最大量比日</th><th onclick="sortSignals('${point}','prog')">距${point}点进度%${sortMark(point, 'prog')}</th></tr>`;
   const body = rows.map(r =>
     '<tr><td>' + r.code + '</td><td>' + r.name + '</td><td>' + fmt(r.ind) + '</td>' +
     '<td>' + fmt(r.last) + '</td><td>' + fmt(r.ws) + '</td><td>' + fmt(r.wspx) + '</td>' +
@@ -311,6 +324,12 @@ function renderSignal(point) {
     '<td><b>' + fmt(r.prog) + '</b></td></tr>').join('');
   document.getElementById('table' + point).innerHTML = head + (body || '<tr><td colspan="14">当前频率没有符合该区间的股票</td></tr>');
   document.getElementById('cnt' + point).textContent = (f === 'D' ? '日线' : '周线') + '：' + rows.length + ' 只（全部 ' + allRows.length + '，≥' + volumeThreshold + '倍 ' + count + '）';
+}
+function sortSignals(point, key) {
+  const sort = signalSort[point];
+  if (sort.key === key) sort.asc = !sort.asc;
+  else { sort.key = key; sort.asc = key !== 'prog'; }
+  renderSignal(point);
 }
 function setSignalFreq(point, f) {
   signalFreq[point] = f;

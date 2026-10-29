@@ -84,6 +84,8 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
   .kline-dialog { width:min(1100px,96vw); max-height:92vh; overflow:auto; background:#fff; border-radius:12px; padding:18px 20px; box-shadow:0 18px 60px rgba(0,0,0,.25); }
   .kline-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
   .kline-title { font-size:17px; font-weight:700; }
+  .kline-head-actions { display:flex; align-items:center; gap:8px; }
+  .kline-freq { padding:6px 12px; }
   .kline-close { border:0; background:#f1f5f9; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:16px; }
   #klineChart { width:100%; height:560px; }
   #klineLoading { color:#6b7280; padding:36px 0; text-align:center; }
@@ -217,7 +219,7 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
 
   <div class="disclaimer">
     <b>统计口径</b>：前复权收盘价（实体线，不含引线）；上涨波段中收盘价自高点回撤≥<span id="thr1"></span>切换为下跌波段（起点=高点日），下跌波段中收盘价自低点反弹≥<span id="thr2"></span>切换为上涨波段（起点=低点日）；波段均值仅基于"已完成波段"，进行中波段不纳入。B点=当前下跌波段按平均下跌历时和跌幅推算的位置；S点=当前上涨波段按平均上涨历时和涨幅推算的位置，两者独立计算。提示榜严格筛选 80%&lt;进度&lt;100%。历史数据起点 <span id="hist"></span>。<br>
-    <b>数据来源</b>：股票列表/价格-新浪财经；行业板块-东方财富F10；分红明细及最新披露财报营收/归母净利润同比-东方财富数据中心；前复权日K线-腾讯行情（数据时点见页首）。行业剔除基于东财一/二/三级行业板块关键词；"红利"以近12个月股息率TTM≥<span id="dthr"></span>%近似。<br>
+    <b>数据来源</b>：股票列表/价格-新浪财经；行业板块-东方财富F10；分红明细及最新披露财报营收/归母净利润同比-东方财富数据中心；前复权日/周K线-腾讯行情（数据时点见页首）。行业剔除基于东财一/二/三级行业板块关键词；"红利"以近12个月股息率TTM≥<span id="dthr"></span>%近似。<br>
     <b>免责声明</b>：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。
   </div>
 </div>
@@ -226,9 +228,13 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
   <div class="kline-dialog">
     <div class="kline-head">
       <div class="kline-title" id="klineTitle">日 K 线</div>
-      <button class="kline-close" onclick="closeKline()" aria-label="关闭">×</button>
+      <div class="kline-head-actions">
+        <button id="klineDayBtn" class="btn kline-freq on" onclick="setKlineFreq('day')">日 K</button>
+        <button id="klineWeekBtn" class="btn kline-freq" onclick="setKlineFreq('week')">周 K</button>
+        <button class="kline-close" onclick="closeKline()" aria-label="关闭">×</button>
+      </div>
     </div>
-    <div class="note">最近 120 个交易日前复权日 K 线，下方为成交量；点击空白处或 × 关闭。</div>
+    <div class="note" id="klineNote">最近 120 个交易日前复权日 K 线，下方为成交量；点击空白处或 × 关闭。</div>
     <div id="klineLoading">正在加载日 K 线…</div>
     <div id="klineChart"></div>
   </div>
@@ -568,13 +574,16 @@ function setFreq(f) {
 
 renderTable();
 
-// ---------- 点击代码 / 名称查看日 K 线 ----------
+// ---------- 点击代码 / 名称查看日 K、周 K 线 ----------
 let klineChart = null;
 let klineRequest = 0;
-function loadDailyKline(code) {
+let klineCode = null;
+let klineFreq = 'day';
+function klineLabel(freq) { return freq === 'week' ? '周 K 线' : '日 K 线'; }
+function loadKline(code, freq) {
   return new Promise((resolve, reject) => {
     const symbol = liveSymbol(code);
-    const varName = 'kline_' + code + '_' + Date.now();
+    const varName = 'kline_' + freq + '_' + code + '_' + Date.now();
     const script = document.createElement('script');
     let settled = false;
     const finish = ok => {
@@ -584,18 +593,18 @@ function loadDailyKline(code) {
       script.remove();
       delete window[varName];
       const node = ok && payload && payload.data && payload.data[symbol];
-      const rows = node && (node.qfqday || node.day);
+      const rows = node && (node['qfq' + freq] || node[freq]);
       if (rows && rows.length) resolve(rows);
       else reject(new Error('K线数据不可用'));
     };
     script.onload = () => finish(true);
     script.onerror = () => finish(false);
-    script.src = 'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=' + symbol + ',day,,,120,qfq&_var=' + varName + '&_=' + Date.now();
+    script.src = 'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=' + symbol + ',' + freq + ',,,120,qfq&_var=' + varName + '&_=' + Date.now();
     document.head.appendChild(script);
     setTimeout(() => finish(false), 12000);
   });
 }
-function renderKline(rows) {
+function renderKline(rows, freq) {
   const dates = rows.map(x => x[0]);
   const candles = rows.map(x => [Number(x[1]), Number(x[2]), Number(x[4]), Number(x[3])]);
   const volumes = rows.map(x => ({
@@ -623,35 +632,44 @@ function renderKline(rows) {
       { type: 'slider', xAxisIndex: [0, 1], bottom: 8, height: 18, start: 15, end: 100 }
     ],
     series: [
-      { name: '日K', type: 'candlestick', data: candles,
+      { name: freq === 'week' ? '周K' : '日K', type: 'candlestick', data: candles,
         itemStyle: { color: '#ef5350', color0: '#26a69a', borderColor: '#ef5350', borderColor0: '#26a69a' } },
       { name: '成交量', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: volumes }
     ]
   }, true);
   klineChart.resize();
 }
-async function openKline(code) {
+async function openKline(code, freq = 'day') {
   const request = ++klineRequest;
+  klineCode = code;
+  klineFreq = freq;
+  const label = klineLabel(freq);
   const modal = document.getElementById('klineModal');
   const loading = document.getElementById('klineLoading');
   const chartElement = document.getElementById('klineChart');
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
-  document.getElementById('klineTitle').textContent = code + ' ' + (stockNames.get(code) || '') + ' · 日 K 线';
-  loading.textContent = '正在加载日 K 线…';
+  document.getElementById('klineDayBtn').className = 'btn kline-freq' + (freq === 'day' ? ' on' : '');
+  document.getElementById('klineWeekBtn').className = 'btn kline-freq' + (freq === 'week' ? ' on' : '');
+  document.getElementById('klineTitle').textContent = code + ' ' + (stockNames.get(code) || '') + ' · ' + label;
+  document.getElementById('klineNote').textContent = '最近 120 根前复权' + label + '，下方为成交量；点击空白处或 × 关闭。';
+  loading.textContent = '正在加载' + label + '…';
   loading.style.display = 'block';
   chartElement.style.display = 'none';
   try {
-    const rows = await loadDailyKline(code);
+    const rows = await loadKline(code, freq);
     if (request !== klineRequest) return;
     loading.style.display = 'none';
     chartElement.style.display = 'block';
     if (!klineChart) klineChart = echarts.init(chartElement);
-    renderKline(rows);
+    renderKline(rows, freq);
   } catch (e) {
     if (request !== klineRequest) return;
-    loading.textContent = '日 K 线加载失败，请关闭后重试。';
+    loading.textContent = label + '加载失败，请关闭后重试。';
   }
+}
+function setKlineFreq(freq) {
+  if (klineCode && freq !== klineFreq) openKline(klineCode, freq);
 }
 function closeKline() {
   klineRequest++;
